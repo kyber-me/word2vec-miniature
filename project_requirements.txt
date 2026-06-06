@@ -1,0 +1,5 @@
+
+
+- Code must be able to iterate over all phrases from the small sample dataset and create the vocabulary and the random initial embedding matrix Win
+
+-> What kind of initial distribution is better for the Win randomness?
