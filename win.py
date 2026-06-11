@@ -7,99 +7,163 @@ CONTEXT_SIZE = CHUNK_SIZE - 1
 
 
 class WeightMatrix:
-    corpora: NDArray
-    vocabulary: NDArray[np.str_] | None = None
-    embeddings: NDArray[np.float64] | None = None
+    _corpora: NDArray
+    _dataset: NDArray[np.str_] | None = None
+    _embeddings: NDArray[np.float64] | None = None
 
-    def __init__(self, path: str = "corpora.csv") -> None:
+    word_to_index: dict
+
+    paths: dict = {
+        "corpora": "corpora.csv",
+        "dataset": "dataset.npy",
+        "embeddings": "embeddings.npy",
+    }
+
+    def __init__(self) -> None:
+        self._corpora = self._load_corpora()
+        self._vocabulary = self._load_vocabulary()
+        self._embeddings = self._load_embeddings()
+
+        self.word_to_index = {}
+
+    def _load_corpora(self) -> NDArray:
         try:
-            self.corpora = np.loadtxt(path, dtype=str, delimiter=";", skiprows=1)
+            self._corpora = np.loadtxt(
+                self.paths["corpora"], dtype=str, delimiter=";", skiprows=1
+            )
 
-            self.vocabulary = np.load("vocabulary.npy", "r")
-            self.embeddings = np.load("embeddings.npy", "r")
-
+            return self._corpora
         except Exception as e:
             print(e)
+            raise Exception("corpora not found")
 
-    def get_phrases(self) -> NDArray:
-        return self.corpora[:, -1] if self.corpora is not None else np.array([])
+    def _load_vocabulary(self) -> NDArray | None:
+        try:
+            dataset = np.load(self.paths["dataset"], "r")
+        except Exception as e:
+            print(e, " NOT CREATED YET")
+            return None
 
-    # --- Public API ---
+        return dataset
 
-    def build(self) -> NDArray:
-        return (
-            self.embeddings
-            if self.embeddings
-            else self._build_vocabulary()._build_matrix()
-        )
+    def _load_embeddings(self) -> NDArray | None:
+        try:
+            embeddings = np.load(self.paths["embeddings"], "r")
+        except Exception as e:
+            print(e, " – NOT CREATED YET")
+            return None
+
+        return embeddings
+
+    @property
+    def corpora(self) -> NDArray:
+        return self._corpora[:, -1]
+
+    @property
+    def vocabulary(self) -> NDArray:
+        if self._vocabulary is None:
+            raise Exception("You must call `build_and_retrieve` before calling dataset")
+
+        return self._vocabulary
+
+    @property
+    def embeddings(self) -> NDArray:
+        if self._embeddings is None:
+            raise Exception()
+
+        return self._embeddings
+
+    # --- Public API --- ?
+
+    def build_and_retrieve(self):
+        self._build_dataset()._build_matrix()
 
     # --- Private functions ---
 
-    def _build_vocabulary(self) -> "WeightMatrix":
+    def _build_dataset(self) -> "WeightMatrix":
 
-        phrases = self.get_phrases()
-        vocabulary = np.array(
+        sentences = self.corpora
+        self._vocabulary = np.array(
             sorted(
                 list(
                     set(
-                        [word for phrase in phrases for word in phrase.split()],
+                        [word for phrase in sentences for word in phrase.split()],
                     )
                 ),
                 key=lambda x: x,
             )
         )
 
-        np.save("vocabulary.npy", vocabulary)
-        self.vocabulary = vocabulary
-
+        np.save("vocabulary.npy", self._vocabulary)
         return self
 
-    def _build_matrix(self) -> NDArray:
-
-        if self.vocabulary is None or not len(self.vocabulary):
-            raise Exception("No vocabulary is found")
+    def _build_matrix(self):
+        if self._vocabulary is None:
+            raise Exception()
 
         rng = np.random.default_rng()
-        out = np.array([rng.standard_normal(3) for _ in self.vocabulary])
-        self.embeddings = out
-        np.save("embeddings.npy", out)
+        embeddings = []
+        for i, w in enumerate(self._vocabulary):
+            # Um embedding está sendo criado randomicamente para a palavra w numa posição i específica no array
+            # de embeddings AND
+            # criamos uma tabela para procurar o índice dessa palavra em embeddings (palavra -> index)
+            embeddings.append(rng.standard_normal(3))
+            self.word_to_index[w] = i
 
-        return out
+        # self._embeddings = np.array([rng.standard_normal(3) for _ in self._vocabulary])
+        self._embeddings = np.array(embeddings)
+        np.save("embeddings.npy", self._embeddings)
 
 
 if __name__ == "__main__":
+    context_filter = [
+        [1, 2, 3, 4],
+        [-1, 1, 2, 3],
+        [-2, -1, 1, 2],
+        [-3, -2, -1, 1],
+        [-4, -3, -2, -1],
+    ]
+
     wm = WeightMatrix()
-    embeddings = wm.embeddings if wm.embeddings is not None else wm.build()
-    # if not wm.embeddings:
-    #     embeddings = wm.embeddings if wm.embeddings is not None else wm.build()
+    wm.build_and_retrieve()
+    # If build and retrieve is not called before, calling vocabulary raises an exception
+    vocabulary = wm.vocabulary
+    embeddings = wm.embeddings
 
-    if wm.vocabulary is not None and wm.embeddings is not None:
-        # Plotar o estado inicial dos pontos no espaço vetorial semântico
-        # ...
-        for e, w in zip(wm.embeddings, wm.vocabulary):
-            print("Plot the points")
-            print(w, " - ", e)
+    # Plotar o estado inicial dos pontos no espaço vetorial semântico
+    # ...
+    for e, w in zip(embeddings, vocabulary):
+        print("Plot the points")
+        print(w, " - ", e)
 
-    phrases = wm.get_phrases()
-    chunks = []
-    for p in phrases:
-        # [0, +1, +2, +3, +4] - first word
-        # [-1, 0, +1, +2, +3] - second word
+    corpora = wm.corpora
+    dataset = np.array([])
+    for sentence in corpora:
+        # s_size = len(sentence)
+        # print("len of the sentence: ", s_size)
 
-        # [-2, -1, 0, +1, +2] - middle of sentence (several times) -> zero word index 2 (TWO)
+        # chunk = np.zeros(5)
+        for target_word_idx, w in enumerate(sentence):
+            map_filter = context_filter[
+                target_word_idx
+                if target_word_idx in [0, 1, len(sentence) - 2, len(sentence) - 1]
+                else 2
+            ]
 
-        # [-3, -2, -1, 0, +1] - second last word
-        # [-4, -3, -2, -1, 0] -> last word
+            # Preciso recuperar os embeddings para cada palavra
+            # Melhor forma de recuperar embeddings de palavras é através de alguma estrutura de dados
+            # que me permita chavear uma palavra para um índice (word to index)
+
+            # O quê o sistema já tem?
+            # 1 - Um array numpy representando o vocabulário
+            # 2 - Um array numpy representando os embeddings
+            # - As 2 estruturas seguem a mesma ordem mas eu precisaria achar o index da palavra com algo como `indexof`
+            # pra usar como índice na estrutura de embeddings
+            target = w
+            context = [
+                wm.word_to_index[sentence[target_word_idx + i]] for i in map_filter
+            ]
+
+            print("context: ", context)
+
         # [embedding_0, embedding_1, embedding_2, ..., embedding_n] = [0, 0, 1, ..., 0] -> label of the data where one represents the expected value for that training set
-        p_size = len(p)
-
-        # chunk = ['', '', '', '', ''] - is there another way to be more straightforward with minimal code?
-        chunk = np.zeros(5)
-        for zero_word_index, w in enumerate(
-            p
-        ):  # zero_word_index overcomes 5 and it has to be circular (?)
-            chunk[zero_word_index] = w
-            # zero word index equals 0 (ZERO) ->
-            # in a space of 5 words
-
-            pass
