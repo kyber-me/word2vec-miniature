@@ -2,6 +2,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 
+CHUNK_SIZE = 5
+CONTEXT_SIZE = CHUNK_SIZE - 1
+
+
 class WeightMatrix:
     corpora: NDArray
     vocabulary: NDArray[np.str_] | None = None
@@ -17,7 +21,7 @@ class WeightMatrix:
         except Exception as e:
             print(e)
 
-    def _get_phrases(self) -> NDArray:
+    def get_phrases(self) -> NDArray:
         return self.corpora[:, -1] if self.corpora is not None else np.array([])
 
     # --- Public API ---
@@ -33,7 +37,7 @@ class WeightMatrix:
 
     def _build_vocabulary(self) -> "WeightMatrix":
 
-        phrases = self._get_phrases()
+        phrases = self.get_phrases()
         vocabulary = np.array(
             sorted(
                 list(
@@ -75,3 +79,27 @@ if __name__ == "__main__":
         for e, w in zip(wm.embeddings, wm.vocabulary):
             print("Plot the points")
             print(w, " - ", e)
+
+    phrases = wm.get_phrases()
+    chunks = []
+    for p in phrases:
+        # [0, +1, +2, +3, +4] - first word
+        # [-1, 0, +1, +2, +3] - second word
+
+        # [-2, -1, 0, +1, +2] - middle of sentence (several times) -> zero word index 2 (TWO)
+
+        # [-3, -2, -1, 0, +1] - second last word
+        # [-4, -3, -2, -1, 0] -> last word
+        # [embedding_0, embedding_1, embedding_2, ..., embedding_n] = [0, 0, 1, ..., 0] -> label of the data where one represents the expected value for that training set
+        p_size = len(p)
+
+        # chunk = ['', '', '', '', ''] - is there another way to be more straightforward with minimal code?
+        chunk = np.zeros(5)
+        for zero_word_index, w in enumerate(
+            p
+        ):  # zero_word_index overcomes 5 and it has to be circular (?)
+            chunk[zero_word_index] = w
+            # zero word index equals 0 (ZERO) ->
+            # in a space of 5 words
+
+            pass
