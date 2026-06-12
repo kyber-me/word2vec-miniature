@@ -132,23 +132,32 @@ if __name__ == "__main__":
 
     # Plotar o estado inicial dos pontos no espaço vetorial semântico
     # ...
-    for e, w in zip(embeddings, vocabulary):
-        print("Plot the points")
-        print(w, " - ", e)
+    # for e, w in zip(embeddings, vocabulary):
+    #     print("Plot the points")
+    #     print(w, " - ", e)
 
-    corpora = wm.corpora
+    corpora: NDArray = wm.corpora
+    # print("corpora: ", corpora)
     dataset = np.array([])
     for sentence in corpora:
         # s_size = len(sentence)
         # print("len of the sentence: ", s_size)
 
         # chunk = np.zeros(5)
-        for target_word_idx, w in enumerate(sentence):
+        # print("sentence: ", sentence)
+        splitted_sentence = sentence.split()
+        for target_word_idx, w in enumerate(splitted_sentence):
+            print("target word index: ", target_word_idx)
             map_filter = context_filter[
-                target_word_idx
-                if target_word_idx in [0, 1, len(sentence) - 2, len(sentence) - 1]
+                target_word_idx % len(context_filter) - 1
+                if target_word_idx
+                in [0, 1, len(splitted_sentence) - 2, len(splitted_sentence) - 1]
                 else 2
             ]
+
+            print("target idx: ", target_word_idx)
+            print("word: ", w)
+            print(map_filter)
 
             # Preciso recuperar os embeddings para cada palavra
             # Melhor forma de recuperar embeddings de palavras é através de alguma estrutura de dados
@@ -159,11 +168,14 @@ if __name__ == "__main__":
             # 2 - Um array numpy representando os embeddings
             # - As 2 estruturas seguem a mesma ordem mas eu precisaria achar o index da palavra com algo como `indexof`
             # pra usar como índice na estrutura de embeddings
-            target = w
-            context = [
-                wm.word_to_index[sentence[target_word_idx + i]] for i in map_filter
-            ]
+            context_target = [
+                embeddings[wm.word_to_index[splitted_sentence[target_word_idx + i]]]
+                for i in map_filter
+            ] + [w]
 
-            print("context: ", context)
+            print("sentence: ", splitted_sentence)
+            print("target idx: ", target_word_idx)
+            print("word: ", w)
+            print("context: ", context_target)
 
         # [embedding_0, embedding_1, embedding_2, ..., embedding_n] = [0, 0, 1, ..., 0] -> label of the data where one represents the expected value for that training set
